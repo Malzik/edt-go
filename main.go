@@ -19,7 +19,11 @@ type Course struct {
 
 type Day struct {
 	date    string
-	courses map[int]*Course
+	courses map[int]Course
+}
+
+type Week struct {
+	day map[int]Day
 }
 
 func main() {
@@ -28,6 +32,8 @@ func main() {
 	router.GET("/:classe/:groupe/:date", getWeek)
 	router.POST("/:classe/:groupe/:date", refresh)
 
+	fmt.Println("https://edtmobiliteng.wigorservices.net/WebPsDyn.aspx?Action=posETUD&serverid=C&tel=alexis.heroin&date=01/06/2022%208:00")
+	fmt.Println("http://localhost:8080/api/I2/G1")
 	router.Run("localhost:8080")
 }
 
@@ -45,21 +51,23 @@ func getWeek(c *gin.Context) {
 		fmt.Println(date)
 	}
 	date = getStartDayOfWeek(date)
-	fmt.Println(date)
 	username := getStudentName(class, group)
 	url := "https://edtmobiliteng.wigorservices.net/WebPsDyn.aspx?Action=posETUD&serverid=C&tel=" + username + "&date="
 
 	week := setAsyncRequest(date, url)
-	c.IndentedJSON(http.StatusOK, week)
+
+	c.IndentedJSON(http.StatusOK, gin.H{"data": week})
 }
 
 func refresh(c *gin.Context) {
 
 }
 
-func setAsyncRequest(date time.Time, url string) map[int]*Day {
+func setAsyncRequest(date time.Time, url string) Week {
 	c := colly.NewCollector()
-	week := make(map[int]*Day)
+	week := Week{
+		make(map[int]Day),
+	}
 	j := 0
 
 	q, _ := queue.New(
@@ -72,12 +80,13 @@ func setAsyncRequest(date time.Time, url string) map[int]*Day {
 	})
 
 	c.OnHTML("body", func(e *colly.HTMLElement) {
-		day := &Day{
-			date: date.Format("01/02/2006"),
+		day := Day{
+			date:    e.ChildText("div.Heure"),
+			courses: make(map[int]Course),
 		}
 		i := 0
 		e.ForEach("div.Ligne", func(i1 int, divContainer *colly.HTMLElement) {
-			day.courses[i] = &Course{
+			day.courses[i] = Course{
 				divContainer.ChildText("div.Debut"),
 				divContainer.ChildText("div.Fin"),
 				divContainer.ChildText("div.Matiere"),
@@ -87,7 +96,7 @@ func setAsyncRequest(date time.Time, url string) map[int]*Day {
 			i++
 		})
 
-		week[j] = day
+		week.day[j] = day
 		j++
 	})
 
